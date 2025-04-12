@@ -1,4 +1,4 @@
--- Roblox Fly Script for PC and Mobile (Executor Injection, Fixed Movement)
+-- Roblox Fly Script for PC and Mobile (Executor Injection, Fixed GUI and Movement)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -25,6 +25,32 @@ local speed = 50 -- Adjust fly speed here
 local bodyVelocity = nil
 local bodyGyro = nil
 local isMobile = UserInputService.TouchEnabled
+local flyButton = nil
+
+-- Create minimal GUI for mobile
+local function createMobileGUI()
+    if not isMobile then return end
+    local success, err = pcall(function()
+        local ScreenGui = Instance.new("ScreenGui")
+        ScreenGui.Parent = player.PlayerGui
+        ScreenGui.ResetOnSpawn = false
+        ScreenGui.Name = "FlyGUI"
+
+        flyButton = Instance.new("TextButton")
+        flyButton.Size = UDim2.new(0, 150, 0, 50)
+        flyButton.Position = UDim2.new(0.75, 0, 0.05, 0)
+        flyButton.Text = "Fly: OFF"
+        flyButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+        flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        flyButton.TextScaled = true
+        flyButton.Parent = ScreenGui
+
+        print("Mobile GUI created successfully!")
+    end)
+    if not success then
+        print("GUI creation failed: " .. tostring(err))
+    end
+end
 
 -- Start flying
 local function startFlying()
@@ -44,7 +70,11 @@ local function startFlying()
     bodyGyro.Parent = rootPart
 
     humanoid.PlatformStand = true
-    print("Flying enabled! PC: WASD, Space, Shift. Mobile: Tap to toggle, swipe screen zones.")
+    if flyButton then fly Classics = true
+    if isMobile then
+        flyButton.Text = "Fly: ON"
+    end
+    print("Flying enabled!")
 end
 
 -- Stop flying
@@ -59,20 +89,42 @@ local function stopFlying()
         bodyGyro = nil
     end
     humanoid.PlatformStand = false
+    if flyButton then
+        flyButton.Text = "Fly: OFF"
+    end
     print("Flying disabled!")
 end
 
--- Toggle flying
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.F or (isMobile and input.UserInputType == Enum.UserInputType.Touch) then
-        if flying then
-            stopFlying()
-        else
-            startFlying()
+-- Handle input
+local function setupInput()
+    -- PC: Toggle with F
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.F then
+            if flying then
+                stopFlying()
+            else
+                startFlying()
+            end
+        end
+    end)
+
+    -- Mobile: Toggle with button
+    if flyButton then
+        local success, err = pcall(function()
+            flyButton.MouseButton1Click:Connect(function()
+                if flying then
+                    stopFlying()
+                else
+                    startFlying()
+                end
+            end)
+        end)
+        if not success then
+            print("Button binding failed: " .. tostring(err))
         end
     end
-end)
+end
 
 -- Handle movement
 RunService.RenderStepped:Connect(function()
@@ -80,8 +132,7 @@ RunService.RenderStepped:Connect(function()
     local direction = Vector3.new()
 
     if isMobile then
-        -- Mobile: Screen zones for movement
-        for _, touch in pairs(User
+        -- Mobile: Touch zones
         local touches = UserInputService:GetTouches()
         if #touches > 0 then
             local touch = touches[1]
@@ -89,21 +140,31 @@ RunService.RenderStepped:Connect(function()
             local screenWidth = camera.ViewportSize.X
             local screenHeight = camera.ViewportSize.Y
 
-            -- Left half: move left, right half: move right
+            -- Horizontal: Left half = left/back, Right half = right/forward
             if touchPos.X < screenWidth * 0.5 then
-                direction = direction - camera.CFrame.RightVector
-                print("Mobile: Moving left")
+                if touchPos.Y < screenHeight * 0.5 then
+                    direction = direction - camera.CFrame.RightVector -- Left
+                    print("Mobile: Moving left")
+                else
+                    direction = direction - camera.CFrame.LookVector -- Backward
+                    print("Mobile: Moving backward")
+                end
             elseif touchPos.X > screenWidth * 0.5 then
-                direction = direction + camera.CFrame.RightVector
-                print("Mobile: Moving right")
+                if touchPos.Y < screenHeight * 0.5 then
+                    direction = direction + camera.CFrame.RightVector -- Right
+                    print("Mobile: Moving right")
+                else
+                    direction = direction + camera.CFrame.LookVector -- Forward
+                    print("Mobile: Moving forward")
+                end
             end
 
-            -- Top half: ascend, bottom half: descend
-            if touchPos.Y < screenHeight * 0.5 then
-                direction = direction + Vector3.new(0, 1, 0)
+            -- Vertical: Top third = ascend, Bottom third = descend
+            if touchPos.Y < screenHeight * 0.33 then
+                direction = direction + Vector3.new(0, 1, 0) -- Ascend
                 print("Mobile: Ascending")
-            elseif touchPos.Y > screenHeight * 0.5 then
-                direction = direction - Vector3.new(0, 1, 0)
+            elseif touchPos.Y > screenHeight * 0.66 then
+                direction = direction - Vector3.new(0, 1, 0) -- Descend
                 print("Mobile: Descending")
             end
         end
@@ -154,4 +215,7 @@ player.CharacterAdded:Connect(function(newCharacter)
     end
 end)
 
-print("Fly script loaded! PC: Press F to toggle, WASD/Space/Shift to move. Mobile: Tap to toggle, swipe left/right/top/bottom to move.")
+-- Initialize
+createMobileGUI()
+setupInput()
+print("Fly script loaded! PC: Press F to toggle, WASD/Space/Shift to move. Mobile: Tap button, touch zones to move.")
