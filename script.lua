@@ -1,8 +1,7 @@
--- Roblox Fly Script for PC and Mobile (Executor Injection, Fixed GUI)
+-- Roblox Fly Script for PC and Mobile (Executor Injection, Fixed Movement)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local GuiService = game:GetService("GuiService")
 
 local player = Players.LocalPlayer
 local character = player.Character
@@ -26,32 +25,6 @@ local speed = 50 -- Adjust fly speed here
 local bodyVelocity = nil
 local bodyGyro = nil
 local isMobile = UserInputService.TouchEnabled
-local flyButton = nil
-
--- Create minimal GUI for mobile
-local function createMobileGUI()
-    if not isMobile then return end
-    local success, err = pcall(function()
-        local ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Parent = player.PlayerGui
-        ScreenGui.ResetOnSpawn = false
-        ScreenGui.Name = "FlyGUI"
-
-        flyButton = Instance.new("TextButton")
-        flyButton.Size = UDim2.new(0, 120, 0, 60)
-        flyButton.Position = UDim2.new(0.8, 0, 0.05, 0)
-        flyButton.Text = "Fly: OFF"
-        flyButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-        flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        flyButton.TextScaled = true
-        flyButton.Parent = ScreenGui
-    end)
-    if not success then
-        print("GUI creation failed: " .. tostring(err))
-    else
-        print("Mobile GUI loaded!")
-    end
-end
 
 -- Start flying
 local function startFlying()
@@ -71,8 +44,7 @@ local function startFlying()
     bodyGyro.Parent = rootPart
 
     humanoid.PlatformStand = true
-    if flyButton then flyButton.Text = "Fly: ON" end
-    print("Flying enabled!")
+    print("Flying enabled! PC: WASD, Space, Shift. Mobile: Tap to toggle, swipe screen zones.")
 end
 
 -- Stop flying
@@ -87,40 +59,20 @@ local function stopFlying()
         bodyGyro = nil
     end
     humanoid.PlatformStand = false
-    if flyButton then flyButton.Text = "Fly: OFF" end
     print("Flying disabled!")
 end
 
--- Handle input
-local function setupInput()
-    -- PC: Toggle with F
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.F then
-            if flying then
-                stopFlying()
-            else
-                startFlying()
-            end
-        end
-    end)
-
-    -- Mobile: Toggle with button
-    if flyButton then
-        local success, err = pcall(function()
-            flyButton.MouseButton1Click:Connect(function()
-                if flying then
-                    stopFlying()
-                else
-                    startFlying()
-                end
-            end)
-        end)
-        if not success then
-            print("Button binding failed: " .. tostring(err))
+-- Toggle flying
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.F or (isMobile and input.UserInputType == Enum.UserInputType.Touch) then
+        if flying then
+            stopFlying()
+        else
+            startFlying()
         end
     end
-end
+end)
 
 -- Handle movement
 RunService.RenderStepped:Connect(function()
@@ -128,34 +80,58 @@ RunService.RenderStepped:Connect(function()
     local direction = Vector3.new()
 
     if isMobile then
-        -- Mobile: Touch-based movement
-        for _, touch in pairs(UserInputService:GetTouches()) do
+        -- Mobile: Screen zones for movement
+        for _, touch in pairs(User
+        local touches = UserInputService:GetTouches()
+        if #touches > 0 then
+            local touch = touches[1]
             local touchPos = touch.Position
-            local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-            local delta = Vector2.new(touchPos.X - screenCenter.X, touchPos.Y - screenCenter.Y)
-            if delta.Magnitude > 50 then
-                direction = direction + Vector3.new(delta.X / 500, -delta.Y / 500, delta.X / 500)
+            local screenWidth = camera.ViewportSize.X
+            local screenHeight = camera.ViewportSize.Y
+
+            -- Left half: move left, right half: move right
+            if touchPos.X < screenWidth * 0.5 then
+                direction = direction - camera.CFrame.RightVector
+                print("Mobile: Moving left")
+            elseif touchPos.X > screenWidth * 0.5 then
+                direction = direction + camera.CFrame.RightVector
+                print("Mobile: Moving right")
+            end
+
+            -- Top half: ascend, bottom half: descend
+            if touchPos.Y < screenHeight * 0.5 then
+                direction = direction + Vector3.new(0, 1, 0)
+                print("Mobile: Ascending")
+            elseif touchPos.Y > screenHeight * 0.5 then
+                direction = direction - Vector3.new(0, 1, 0)
+                print("Mobile: Descending")
             end
         end
     else
         -- PC: Keyboard controls
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
             direction = direction + camera.CFrame.LookVector
+            print("PC: Moving forward")
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then
             direction = direction - camera.CFrame.LookVector
+            print("PC: Moving backward")
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then
             direction = direction - camera.CFrame.RightVector
+            print("PC: Moving left")
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then
             direction = direction + camera.CFrame.RightVector
+            print("PC: Moving right")
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
             direction = direction + Vector3.new(0, 1, 0)
+            print("PC: Ascending")
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
             direction = direction - Vector3.new(0, 1, 0)
+            print("PC: Descending")
         end
     end
 
@@ -178,7 +154,4 @@ player.CharacterAdded:Connect(function(newCharacter)
     end
 end)
 
--- Initialize
-createMobileGUI()
-setupInput()
-print("Fly script loaded! PC: Press F to toggle. Mobile: Tap button or screen to fly.")
+print("Fly script loaded! PC: Press F to toggle, WASD/Space/Shift to move. Mobile: Tap to toggle, swipe left/right/top/bottom to move.")
